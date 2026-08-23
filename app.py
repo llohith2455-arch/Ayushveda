@@ -66,6 +66,27 @@ try:
 except Exception as e:
     allopathic_df = pd.DataFrame()
 
+DEMO_SPECIALISTS = [
+    ('Skin Allergy', 'Dr. Ananya Rao', 'Dermatology'),
+    ('Fungal infection', 'Dr. Ananya Rao', 'Dermatology'),
+    ('Impetigo', 'Dr. Ananya Rao', 'Dermatology'),
+    ('Bronchial Asthma', 'Dr. Meera Nair', 'Respiratory Medicine'),
+    ('Pneumonia', 'Dr. Meera Nair', 'Respiratory Medicine'),
+    ('Common Cold', 'Dr. Meera Nair', 'Respiratory Medicine'),
+    ('Heart attack', 'Dr. Arjun Menon', 'Cardiology'),
+    ('Hypertension', 'Dr. Arjun Menon', 'Cardiology'),
+    ('Diabetes', 'Dr. Kavya Shah', 'Diabetology'),
+    ('Hypoglycemia', 'Dr. Kavya Shah', 'Diabetology'),
+    ('Gastritis', 'Dr. Rohan Iyer', 'Gastroenterology'),
+    ('GERD', 'Dr. Rohan Iyer', 'Gastroenterology'),
+    ('Gastroenteritis', 'Dr. Rohan Iyer', 'Gastroenterology'),
+    ('Migraine', 'Dr. Neha Kulkarni', 'Neurology'),
+    ('Paralysis (brain hemorrhage)', 'Dr. Neha Kulkarni', 'Neurology'),
+]
+SPECIALIST_BY_DISEASE = {disease: {'name': name, 'specialization': specialty} for disease, name, specialty in DEMO_SPECIALISTS}
+for disease in sorted(model.classes_):
+    SPECIALIST_BY_DISEASE.setdefault(disease.strip(), {'name': 'Dr. Priya Deshmukh', 'specialization': 'General Medicine'})
+
 # ── Synonym Map for robust keyword fallback (works without Gemini API) ────────
 SYMPTOM_SYNONYMS = {
     'fever': ['high_fever', 'mild_fever'],
@@ -348,6 +369,17 @@ def init_db():
             appointment_time TEXT,
             reason TEXT,
             status TEXT DEFAULT 'Scheduled',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (patient_id) REFERENCES patients(id),
+            FOREIGN KEY (doctor_id) REFERENCES doctors(id)
+        );
+        CREATE TABLE IF NOT EXISTS consultation_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_id INTEGER NOT NULL,
+            doctor_id INTEGER NOT NULL,
+            disease TEXT,
+            mode TEXT NOT NULL,
+            status TEXT DEFAULT 'Pending',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (patient_id) REFERENCES patients(id),
             FOREIGN KEY (doctor_id) REFERENCES doctors(id)
@@ -838,6 +870,44 @@ def doctor_patients():
     conn.close()
     return render_template('doctor/patients.html', patients=patients)
 
+@app.route('/doctor/predict')
+@login_required('doctor')
+def doctor_predict_page():
+    conn = get_db()
+    patient_id = request.args.get('patient_id', type=int)
+    if patient_id is None:
+        first_patient = conn.execute(
+            "SELECT id FROM patients WHERE doctor_id=? ORDER BY name LIMIT 1",
+            (session['user_id'],)
+        ).fetchone()
+        patient_id = first_patient['id'] if first_patient else None
+    if patient_id:
+        patient = conn.execute(
+            "SELECT * FROM patients WHERE id=? AND doctor_id=?",
+            (patient_id, session['user_id'])
+        ).fetchone()
+        if patient:
+            prescriptions = conn.execute(
+                "SELECT pr.*, d.name as doctor_name FROM prescriptions pr JOIN doctors d ON pr.doctor_id=d.id WHERE pr.patient_id=? ORDER BY pr.created_at DESC",
+                (patient_id,)
+            ).fetchall()
+            doctor = conn.execute("SELECT * FROM doctors WHERE id=?", (session['user_id'],)).fetchone()
+            conn.close()
+            return render_template(
+                'doctor/view_patient.html',
+                patient=patient,
+                prescriptions=prescriptions,
+                symptoms_list=symptoms_list,
+                doctor=doctor,
+                prediction_mode=True
+            )
+    patients = conn.execute(
+        "SELECT id, name, email, age, gender, blood_group, phone FROM patients WHERE doctor_id=? ORDER BY name",
+        (session['user_id'],)
+    ).fetchall()
+    conn.close()
+    return render_template('doctor/predict.html', patients=patients)
+
 @app.route('/doctor/patients/<int:id>')
 @login_required('doctor')
 def doctor_view_patient(id):
@@ -1090,7 +1160,28 @@ def doctor_prescribe(patient_id):
     conn.commit()
     conn.close()
     flash('Prescription saved successfully!', 'success')
-    return redirect(url_for('doctor_view_patient', id=patient_id))
+    return redirect(url_for('doctor_view_patient', id=patient_id, tab='history'))
+
+@app.route('/doctor/prescribe/delete/<int:pr_id>', methods=['POST'])
+@login_required('doctor')
+def doctor_delete_prescription(pr_id):
+    conn = get_db()
+    prescription = conn.execute(
+        "SELECT patient_id FROM prescriptions WHERE id=? AND doctor_id=?",
+        (pr_id, session['user_id'])
+    ).fetchone()
+    if prescription:
+        conn.execute("DELETE FROM prescriptions WHERE id=? AND doctor_id=?", (pr_id, session['user_id']))
+        conn.commit()
+        flash('Treatment record deleted successfully.', 'success')
+        patient_id = prescription['patient_id']
+    else:
+        flash('Treatment record not found or access denied.', 'error')
+        patient_id = None
+    conn.close()
+    if patient_id:
+        return redirect(url_for('doctor_view_patient', id=patient_id, tab='history'))
+    return redirect(url_for('doctor_patients'))
 
 @app.route('/doctor/appointments')
 @login_required('doctor')
@@ -1100,8 +1191,12 @@ def doctor_appointments():
         "SELECT a.*, p.name as patient_name, p.phone as patient_phone FROM appointments a JOIN patients p ON a.patient_id=p.id WHERE a.doctor_id=? ORDER BY a.appointment_date DESC",
         (session['user_id'],)
     ).fetchall()
+    consultation_requests = conn.execute(
+        "SELECT cr.*, p.name as patient_name, p.phone as patient_phone FROM consultation_requests cr JOIN patients p ON cr.patient_id=p.id WHERE cr.doctor_id=? ORDER BY cr.created_at DESC",
+        (session['user_id'],)
+    ).fetchall()
     conn.close()
-    return render_template('doctor/appointments.html', appointments=appointments)
+    return render_template('doctor/appointments.html', appointments=appointments, consultation_requests=consultation_requests)
 
 @app.route('/doctor/profile', methods=['GET', 'POST'])
 @login_required('doctor')
@@ -1246,10 +1341,25 @@ def patient_map():
     conn.close()
     return render_template('patient/map.html', patient=patient)
 
-@app.route('/patient/consult')
+@app.route('/patient/consult', methods=['GET', 'POST'])
 @login_required('patient')
 def patient_consult():
     conn = get_db()
+    if request.method == 'POST':
+        doctor_id = request.form.get('doctor_id', type=int)
+        disease = request.form.get('disease', '').strip()
+        doctor = conn.execute("SELECT id FROM doctors WHERE id=?", (doctor_id,)).fetchone()
+        if not doctor:
+            flash('Please select a valid doctor.', 'error')
+        else:
+            conn.execute(
+                "INSERT INTO consultation_requests (patient_id, doctor_id, disease, mode) VALUES (?,?,?,'Video')",
+                (session['user_id'], doctor_id, disease or 'General consultation')
+            )
+            conn.commit()
+            flash('Video consultation request sent. The doctor must approve it before a video call can start.', 'success')
+            conn.close()
+            return redirect(url_for('patient_consult'))
     patient = conn.execute(
         "SELECT p.*, d.name as doctor_name, d.specialization, d.phone as doctor_phone FROM patients p LEFT JOIN doctors d ON p.doctor_id=d.id WHERE p.id=?",
         (session['user_id'],)
@@ -1257,8 +1367,36 @@ def patient_consult():
     doctors = conn.execute(
         "SELECT id, name, phone, specialization, qualification, experience FROM doctors ORDER BY name"
     ).fetchall()
+    video_requests = conn.execute(
+        "SELECT cr.*, d.name as doctor_name FROM consultation_requests cr JOIN doctors d ON cr.doctor_id=d.id WHERE cr.patient_id=? ORDER BY cr.created_at DESC",
+        (session['user_id'],)
+    ).fetchall()
     conn.close()
-    return render_template('patient/consult.html', patient=patient, doctors=doctors)
+    specialists = [
+        (disease, details['name'], details['specialization'])
+        for disease, details in sorted(SPECIALIST_BY_DISEASE.items())
+    ]
+    return render_template(
+        'patient/consult.html', patient=patient, doctors=doctors,
+        video_requests=video_requests, demo_specialists=specialists,
+        diseases=sorted(SPECIALIST_BY_DISEASE)
+    )
+
+@app.route('/doctor/consultation-request/<int:request_id>/<action>', methods=['POST'])
+@login_required('doctor')
+def doctor_consultation_request(request_id, action):
+    if action not in {'approve', 'decline'}:
+        return redirect(url_for('doctor_appointments'))
+    status = 'Approved' if action == 'approve' else 'Declined'
+    conn = get_db()
+    conn.execute(
+        "UPDATE consultation_requests SET status=? WHERE id=? AND doctor_id=?",
+        (status, request_id, session['user_id'])
+    )
+    conn.commit()
+    conn.close()
+    flash(f'Video consultation request {status.lower()}.', 'success')
+    return redirect(url_for('doctor_appointments'))
 
 @app.route('/patient/history')
 @login_required('patient')

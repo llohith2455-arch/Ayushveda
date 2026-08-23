@@ -7,8 +7,9 @@
 <span class="nav-section-label">My Health</span>
 <a href="/patient/dashboard" class="nav-link"><span class="icon">🏠</span> Dashboard</a>
 <a href="/patient/predict" class="nav-link active"><span class="icon">🤖</span> AI Prediction</a>
+<a href="/patient/history" class="nav-link"><span class="icon"><img src="/static/images/dashboard_icon.png" style="height:1.2em;width:1.2em;vertical-align:-0.2em;"></span> Treatment History</a>
 <a href="/patient/map" class="nav-link"><span class="icon">📍</span> Map</a>
-<a href="/patient/consult" class="nav-link"><span class="icon">📞</span> Consult a Doctor</a>
+<a href="/patient/consult" class="nav-link"><span class="icon">📞</span> Consult Specialized Doctors</a>
 <span class="nav-section-label">Account</span>
 <a href="/patient/profile" class="nav-link"><span class="icon"><img src="/static/images/profile_icon.png" style="height:1.2em;width:1.2em;vertical-align:-0.2em;"></span> My Profile</a>
 {% endblock %}
@@ -69,6 +70,10 @@
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 14px;
 }
+.disclaimer-content { flex: 1; min-width: 0; }
+.disclaimer-language { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.disclaimer-language label { font-size: 12px; font-weight: 600; color: #5D4037; }
+.disclaimer-language select { padding: 6px 8px; border: 1px solid #D0C8C0; border-radius: 6px; background: #fff; font-family: 'DM Sans'; font-size: 12px; }
 </style>
 {% endblock %}
 
@@ -110,9 +115,25 @@
     <!-- Disclaimer Banner -->
     <div class="disclaimer-banner">
         <span style="font-size:24px;flex-shrink:0;">⚕️</span>
-        <div>
+        <div class="disclaimer-content">
             <div style="font-size:14px;font-weight:700;color:#E65100;margin-bottom:4px;">AI-Only Mode — For Informational Use</div>
-            <div style="font-size:13px;color:#5D4037;line-height:1.6;">This tool uses machine learning to suggest possible conditions based on your symptoms. It is <strong>not a substitute for a professional medical diagnosis</strong>. If you have serious symptoms, please <a href="/patient/consult" style="color:#E8611A;">consult a doctor</a>. Results include both Ayurvedic and modern medicine options.</div>
+            <div class="disclaimer-language">
+                <label for="disclaimer_lang">Read in</label>
+                <select id="disclaimer_lang" aria-label="Disclaimer language" onchange="updateDisclaimerLanguage()">
+                    <option value="kn">ಕನ್ನಡ (Kannada)</option>
+                    <option value="hi">हिन्दी (Hindi)</option>
+                    <option value="ta">தமிழ் (Tamil)</option>
+                    <option value="te">తెలుగు (Telugu)</option>
+                    <option value="bn">বাংলা (Bengali)</option>
+                    <option value="mr">मराठी (Marathi)</option>
+                    <option value="ml">മലയാളം (Malayalam)</option>
+                    <option value="ur">اردو (Urdu)</option>
+                    <option value="gu">ગુજરાતી (Gujarati)</option>
+                    <option value="pa">ਪੰਜਾਬੀ (Punjabi)</option>
+                    <option value="en" selected>English</option>
+                </select>
+            </div>
+            <div id="disclaimer_message" style="font-size:13px;color:#5D4037;line-height:1.6;">This tool uses machine learning to suggest possible conditions based on your symptoms. It is <strong>not a substitute for a professional medical diagnosis</strong>. If you have serious symptoms, please <a href="/patient/consult" style="color:#E8611A;">consult a specialized doctor</a>. Results include both Ayurvedic and modern medicine options.</div>
         </div>
     </div>
 
@@ -273,6 +294,25 @@
 <script>
 let selectedSymptoms = new Set();
 let currentPrediction = null;
+
+const disclaimerMessages = {
+    en: 'This tool uses machine learning to suggest possible conditions based on your symptoms. It is <strong>not a substitute for a professional medical diagnosis</strong>. If you have serious symptoms, please <a href="/patient/consult" style="color:#E8611A;">consult a specialized doctor</a>. Results include both Ayurvedic and modern medicine options.',
+    kn: 'ಈ ಉಪಕರಣವು ನಿಮ್ಮ ಲಕ್ಷಣಗಳ ಆಧಾರದ ಮೇಲೆ ಸಂಭವನೀಯ ಆರೋಗ್ಯ ಸಮಸ್ಯೆಗಳನ್ನು ಸೂಚಿಸಲು ಯಂತ್ರ ಕಲಿಕೆಯನ್ನು ಬಳಸುತ್ತದೆ. ಇದು <strong>ವೃತ್ತಿಪರ ವೈದ್ಯಕೀಯ ನಿರ್ಣಯಕ್ಕೆ ಪರ್ಯಾಯವಲ್ಲ</strong>. ಗಂಭೀರ ಲಕ್ಷಣಗಳಿದ್ದರೆ ದಯವಿಟ್ಟು <a href="/patient/consult" style="color:#E8611A;">ವೈದ್ಯರನ್ನು ಸಂಪರ್ಕಿಸಿ</a>. ಫಲಿತಾಂಶಗಳಲ್ಲಿ ಆಯುರ್ವೇದ ಮತ್ತು ಆಧುನಿಕ ವೈದ್ಯಕೀಯ ಆಯ್ಕೆಗಳು ಸೇರಿವೆ.',
+    hi: 'यह उपकरण आपके लक्षणों के आधार पर संभावित स्वास्थ्य समस्याओं का सुझाव देने के लिए मशीन लर्निंग का उपयोग करता है। यह <strong>पेशेवर चिकित्सकीय निदान का विकल्प नहीं है</strong>। गंभीर लक्षण होने पर कृपया <a href="/patient/consult" style="color:#E8611A;">डॉक्टर से सलाह लें</a>। परिणामों में आयुर्वेदिक और आधुनिक चिकित्सा दोनों विकल्प शामिल हैं।',
+    ta: 'இந்த கருவி உங்கள் அறிகுறிகளின் அடிப்படையில் ஏற்படக்கூடிய உடல்நலப் பிரச்சினைகளைப் பரிந்துரைக்க இயந்திரக் கற்றலைப் பயன்படுத்துகிறது. இது <strong>தொழில்முறை மருத்துவ நோயறிதலுக்கு மாற்றாகாது</strong>. தீவிர அறிகுறிகள் இருந்தால் <a href="/patient/consult" style="color:#E8611A;">மருத்துவரை அணுகவும்</a>. முடிவுகளில் ஆயுர்வேத மற்றும் நவீன மருத்துவ விருப்பங்கள் உள்ளன.',
+    te: 'ఈ సాధనం మీ లక్షణాల ఆధారంగా సంభవించే ఆరోగ్య సమస్యలను సూచించడానికి మెషిన్ లెర్నింగ్‌ను ఉపయోగిస్తుంది. ఇది <strong>వృత్తిపరమైన వైద్య నిర్ధారణకు ప్రత్యామ్నాయం కాదు</strong>. తీవ్రమైన లక్షణాలు ఉంటే దయచేసి <a href="/patient/consult" style="color:#E8611A;">వైద్యుడిని సంప్రదించండి</a>. ఫలితాల్లో ఆయుర్వేద మరియు ఆధునిక వైద్య ఎంపికలు ఉన్నాయి.',
+    bn: 'এই সরঞ্জামটি আপনার উপসর্গের ভিত্তিতে সম্ভাব্য স্বাস্থ্য সমস্যা শনাক্ত করতে মেশিন লার্নিং ব্যবহার করে। এটি <strong>পেশাদার চিকিৎসা নির্ণয়ের বিকল্প নয়</strong>। গুরুতর উপসর্গ থাকলে অনুগ্রহ করে <a href="/patient/consult" style="color:#E8611A;">চিকিৎসকের পরামর্শ নিন</a>। ফলাফলে আয়ুর্বেদিক ও আধুনিক চিকিৎসার উভয় বিকল্প রয়েছে।',
+    mr: 'हे साधन तुमच्या लक्षणांवर आधारित संभाव्य आरोग्य समस्या सुचवण्यासाठी मशीन लर्निंग वापरते. हे <strong>व्यावसायिक वैद्यकीय निदानाचा पर्याय नाही</strong>. गंभीर लक्षणे असल्यास कृपया <a href="/patient/consult" style="color:#E8611A;">डॉक्टरांचा सल्ला घ्या</a>. परिणामांमध्ये आयुर्वेदिक आणि आधुनिक वैद्यकीय दोन्ही पर्यायांचा समावेश आहे.',
+    ml: 'നിങ്ങളുടെ ലക്ഷണങ്ങളെ അടിസ്ഥാനമാക്കി സാധ്യതയുള്ള ആരോഗ്യപ്രശ്നങ്ങൾ നിർദ്ദേശിക്കാൻ ഈ ഉപകരണം മെഷീൻ ലേണിംഗ് ഉപയോഗിക്കുന്നു. ഇത് <strong>പ്രൊഫഷണൽ മെഡിക്കൽ രോഗനിർണയത്തിന് പകരമല്ല</strong>. ഗുരുതരമായ ലക്ഷണങ്ങൾ ഉണ്ടെങ്കിൽ ദയവായി <a href="/patient/consult" style="color:#E8611A;">ഡോക്ടറെ സമീപിക്കുക</a>. ഫലങ്ങളിൽ ആയുർവേദവും ആധുനിക വൈദ്യശാസ്ത്രവും ഉൾപ്പെടുന്നു.',
+    ur: 'یہ ٹول آپ کی علامات کی بنیاد پر ممکنہ صحت کے مسائل تجویز کرنے کے لیے مشین لرننگ استعمال کرتا ہے۔ یہ <strong>پیشہ ورانہ طبی تشخیص کا متبادل نہیں ہے</strong>۔ اگر علامات شدید ہوں تو براہِ کرم <a href="/patient/consult" style="color:#E8611A;">ڈاکٹر سے مشورہ کریں</a>۔ نتائج میں آیورویدک اور جدید طب دونوں کے اختیارات شامل ہیں۔',
+    gu: 'આ સાધન તમારા લક્ષણોના આધારે સંભવિત સ્વાસ્થ્ય સમસ્યાઓ સૂચવવા માટે મશીન લર્નિંગનો ઉપયોગ કરે છે. તે <strong>વ્યાવસાયિક તબીબી નિદાનનો વિકલ્પ નથી</strong>. ગંભીર લક્ષણો હોય તો કૃપા કરીને <a href="/patient/consult" style="color:#E8611A;">ડૉક્ટરની સલાહ લો</a>. પરિણામોમાં આયુર્વેદિક અને આધુનિક તબીબી બંને વિકલ્પો સામેલ છે.',
+    pa: 'ਇਹ ਸਾਧਨ ਤੁਹਾਡੇ ਲੱਛਣਾਂ ਦੇ ਆਧਾਰ ਤੇ ਸੰਭਾਵਿਤ ਸਿਹਤ ਸਮੱਸਿਆਵਾਂ ਦਾ ਸੁਝਾਅ ਦੇਣ ਲਈ ਮਸ਼ੀਨ ਲਰਨਿੰਗ ਦੀ ਵਰਤੋਂ ਕਰਦਾ ਹੈ। ਇਹ <strong>ਪੇਸ਼ੇਵਰ ਡਾਕਟਰੀ ਜਾਂਚ ਦਾ ਬਦਲ ਨਹੀਂ ਹੈ</strong>। ਗੰਭੀਰ ਲੱਛਣ ਹੋਣ ਤੇ ਕਿਰਪਾ ਕਰਕੇ <a href="/patient/consult" style="color:#E8611A;">ਡਾਕਟਰ ਨਾਲ ਸਲਾਹ ਕਰੋ</a>। ਨਤੀਜਿਆਂ ਵਿੱਚ ਆਯੁਰਵੇਦਿਕ ਅਤੇ ਆਧੁਨਿਕ ਦਵਾਈਆਂ ਦੇ ਵਿਕਲਪ ਸ਼ਾਮਲ ਹਨ।'
+};
+
+function updateDisclaimerLanguage() {
+    const language = document.getElementById('disclaimer_lang').value;
+    document.getElementById('disclaimer_message').innerHTML = disclaimerMessages[language] || disclaimerMessages.en;
+}
 
 // ── Page Tabs ─────────────────────────────────────────────────────────────────
 function showPageTab(tab, btn) {
@@ -524,7 +564,7 @@ function switchMedicine(type) {
             </div>
             <div style="background:#FBF7F0;border-radius:10px;padding:14px;">
                 <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7A6558;margin-bottom:8px;">📋 Dosage</div>
-                <div style="font-size:13px;color:#4A3728;">${info.dosage || 'Consult a doctor'}</div>
+                <div style="font-size:13px;color:#4A3728;">${info.dosage || 'Consult a specialized doctor'}</div>
             </div>
             <div style="background:#FBF7F0;border-radius:10px;padding:14px;">
                 <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7A6558;margin-bottom:8px;">⏱️ Duration</div>
@@ -544,7 +584,7 @@ function switchMedicine(type) {
             <div style="grid-column:1/-1;text-align:center;padding:32px;color:#7A6558;">
                 <div style="font-size:48px;margin-bottom:12px;">📋</div>
                 <div style="font-size:14px;">No ${type === 'ayurvedic' ? 'Ayurvedic' : 'Allopathic'} treatment data found for this condition.</div>
-                <div style="font-size:13px;margin-top:8px;"><a href="/patient/consult" style="color:#E8611A;">Consult a doctor</a> for a proper prescription.</div>
+                <div style="font-size:13px;margin-top:8px;"><a href="/patient/consult" style="color:#E8611A;">Consult a specialized doctor</a> for a proper prescription.</div>
             </div>
         `;
     }

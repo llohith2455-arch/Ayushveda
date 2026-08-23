@@ -6,7 +6,8 @@
 <span class="nav-section-label">Main</span>
 <a href="/doctor/dashboard" class="nav-link"><span class="icon"><img src="/static/images/dashboard_icon.png" style="height:1.2em;width:1.2em;vertical-align:-0.2em;"></span> Dashboard</a>
 <span class="nav-section-label">Clinical</span>
-<a href="/doctor/patients" class="nav-link active"><span class="icon"><img src="/static/images/patients_icon.png" style="height:1.2em;width:1.2em;vertical-align:-0.2em;"></span> My Patients</a>
+<a href="/doctor/patients" class="nav-link{% if not prediction_mode %} active{% endif %}"><span class="icon"><img src="/static/images/patients_icon.png" style="height:1.2em;width:1.2em;vertical-align:-0.2em;"></span> My Patients</a>
+<a href="/doctor/predict{% if prediction_mode %}?patient_id={{ patient.id }}{% endif %}" class="nav-link{% if prediction_mode %} active{% endif %}"><span class="icon">🤖</span> AI Disease Prediction</a>
 <a href="/doctor/appointments" class="nav-link"><span class="icon"><img src="/static/images/appointments_icon.png" style="height:1.2em;width:1.2em;vertical-align:-0.2em;"></span> Appointments</a>
 <span class="nav-section-label">Account</span>
 <a href="/doctor/profile" class="nav-link"><span class="icon"><img src="/static/images/profile_icon.png" style="height:1.2em;width:1.2em;vertical-align:-0.2em;"></span> My Profile</a>
@@ -158,12 +159,12 @@
 
 <!-- Tabs -->
 <div style="display:flex;gap:10px;margin-bottom:24px">
-    <button class="tab-btn active" onclick="showTab('predict',this)">🤖 ML Disease Prediction</button>
-    <button class="tab-btn" onclick="showTab('history',this)"><img src="/static/images/dashboard_icon.png" style="height:1.2em;width:1.2em;vertical-align:-0.2em;"> Treatment History ({{ prescriptions|length }})</button>
+    <button class="tab-btn{% if request.args.get('tab', 'predict') != 'history' %} active{% endif %}" onclick="showTab('predict',this)">🤖 ML Disease Prediction</button>
+    <button class="tab-btn{% if request.args.get('tab') == 'history' %} active{% endif %}" onclick="showTab('history',this)"><img src="/static/images/dashboard_icon.png" style="height:1.2em;width:1.2em;vertical-align:-0.2em;"> Treatment History ({{ prescriptions|length }})</button>
 </div>
 
 <!-- ML PREDICTION TAB -->
-<div id="tab_predict">
+<div id="tab_predict"{% if request.args.get('tab') == 'history' %} style="display:none"{% endif %}>
     {% if patient.triage_symptoms %}
     <div style="background:#FFF3E0;border:2px solid #E8611A;border-radius:12px;padding:20px;margin-bottom:24px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -188,54 +189,37 @@
                 <p style="font-size:13px;color:#7A6558;margin-top:4px">Type patient symptoms for AI auto-check or manually choose below</p>
             </div>
             <div style="display:flex;gap:10px">
-                <button onclick="toggleTranslatorPanel()" class="btn btn-outline btn-sm" id="translator_toggle_btn" style="border-color:#7B1FA2;color:#7B1FA2;background:#F3E5F5">🌐 Patient Translator</button>
                 <button onclick="clearSymptoms()" class="btn btn-outline btn-sm">Clear All</button>
                 <button onclick="predictDisease()" class="btn btn-primary" id="predict_btn">🤖 Predict Disease</button>
             </div>
         </div>
 
-        <!-- AI Language Translator Panel -->
-        <div id="translator_panel" style="display:none; margin:0 24px 20px 24px; background:linear-gradient(135deg,#F3E5F5,#EDE7F6); border:1.5px solid #CE93D8; border-radius:12px; padding:16px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-                <div>
-                    <h4 style="margin:0; font-size:15px; color:#6A1B9A; display:flex; align-items:center; gap:6px;">🎙️ Live Patient Translator</h4>
-                    <p style="margin:4px 0 0; font-size:12px; color:#888;">Listen to patient speak Kannada or Hindi — translates to English automatically</p>
-                </div>
-                <div style="display:flex; gap:12px; align-items:center;">
-                    <label style="font-size:13px; color:#4A3728; display:flex; align-items:center; gap:5px; cursor:pointer;">
-                        <input type="radio" name="trans_lang" value="kn" checked> ಕನ್ನಡ (Kannada)
-                    </label>
-                    <label style="font-size:13px; color:#4A3728; display:flex; align-items:center; gap:5px; cursor:pointer;">
-                        <input type="radio" name="trans_lang" value="hi"> हिंदी (Hindi)
-                    </label>
-                </div>
-            </div>
-            <div style="display:flex; gap:12px; align-items:flex-start;">
-                <!-- Mic Button -->
-                <button id="trans_record_btn" onclick="toggleDoctorTranslation()" style="flex-shrink:0; width:52px; height:52px; border-radius:50%; background:#7B1FA2; color:#fff; font-size:22px; border:none; cursor:pointer; box-shadow:0 3px 10px rgba(123,31,162,0.3); transition:background 0.2s;">🎤</button>
-                <div style="flex:1;">
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                        <div style="background:#FFF9C4; padding:10px; border-radius:8px; border:1px solid #FFF59D;">
-                            <div style="font-size:10px; color:#F57F17; font-weight:700; text-transform:uppercase; margin-bottom:4px;">Patient Speech</div>
-                            <div id="trans_source" style="font-size:14px; color:#333; min-height:36px; font-style:italic;">Waiting...</div>
-                        </div>
-                        <div style="background:#E8F5E9; padding:10px; border-radius:8px; border:1px solid #A5D6A7;">
-                            <div style="font-size:10px; color:#2D5016; font-weight:700; text-transform:uppercase; margin-bottom:4px;">English Translation</div>
-                            <div id="trans_result" style="font-size:14px; color:#1A1208; min-height:36px; font-weight:500;">—</div>
-                        </div>
-                    </div>
-                    <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
-                        <p id="trans_status" style="margin:0; font-size:12px; color:#888;">Press the mic to start listening</p>
-                        <button onclick="useTranslationAsSymptoms()" id="use_trans_btn" style="display:none; padding:6px 14px; background:#2D5016; color:#fff; border:none; border-radius:6px; font-size:12px; cursor:pointer; font-family:'DM Sans';">✅ Use as Symptom Input</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div style="margin-bottom:20px;display:flex;gap:10px;padding:0 24px;">
+        <div style="margin-bottom:8px;display:flex;gap:10px;padding:0 24px;flex-wrap:wrap;align-items:center;">
             <button type="button" onclick="startDictation()" class="btn btn-outline" id="voice_btn" style="border-color:#E8611A;color:#E8611A;background:#FFF3E0;font-size:18px;padding:0 14px;" title="Dictate Symptoms">🎙️</button>
+            <button type="button" onclick="toggleDoctorTranslation()" id="trans_record_btn" class="btn btn-outline" style="border-color:#7B1FA2;color:#7B1FA2;background:#F3E5F5;font-size:18px;padding:0 14px;" title="Doctor Language Translator">🎤</button>
+            <select id="trans_lang" aria-label="Doctor language translator language" style="padding:10px;border:1px solid #D0C8C0;border-radius:8px;min-width:160px;font-family:'DM Sans';">
+                <option value="kn">ಕನ್ನಡ (Kannada)</option>
+                <option value="hi">हिन्दी (Hindi)</option>
+                <option value="ta">தமிழ் (Tamil)</option>
+                <option value="te">తెలుగు (Telugu)</option>
+                <option value="bn">বাংলা (Bengali)</option>
+                <option value="mr">मराठी (Marathi)</option>
+                <option value="ml">മലയാളം (Malayalam)</option>
+                <option value="ur">اردو (Urdu)</option>
+                <option value="gu">ગુજરાતી (Gujarati)</option>
+                <option value="pa">ਪੰਜਾਬੀ (Punjabi)</option>
+                <option value="en">English</option>
+            </select>
             <input type="text" id="ai_symptom_input" placeholder="✨ Type or speak symptoms here..." style="flex:1;padding:12px;border:1px solid #D0C8C0;border-radius:8px;font-family:'DM Sans';font-size:14px">
             <button type="button" onclick="extractSymptoms()" class="btn btn-outline" id="ai_extract_btn" style="border-color:#E8611A;color:#E8611A;background:#FFF3E0">🤖 AI Auto</button>
+        </div>
+        <div style="margin:0 24px 20px;padding:8px 12px;background:#F3E5F5;border:1px solid #CE93D8;border-radius:8px;font-size:12px;color:#6A1B9A;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <strong>Doctor Language Translator</strong>
+            <span id="trans_source">Waiting for patient speech</span>
+            <span aria-hidden="true">→</span>
+            <span id="trans_result">English translation appears here</span>
+            <span id="trans_status" style="color:#888;">Press the purple mic to start</span>
+            <button onclick="useTranslationAsSymptoms()" id="use_trans_btn" style="display:none;padding:6px 14px;background:#2D5016;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-family:'DM Sans';">✅ Use as Symptom Input</button>
         </div>
 
         <div class="symptom-grid" style="padding:0 24px;">
@@ -310,11 +294,12 @@
                 <div><span style="color:#7A6558">Experience:</span> <strong>{{ doctor.experience }} Years</strong></div>
             </div>
             <div style="margin-top:12px; padding-top:12px; border-top:1px solid #E0D8D0; font-size:12px; color:#7A6558; font-style:italic;">
-                <p style="margin: 0 0 8px 0;">By proceeding below, you assume full clinical responsibility for ensuring the predicted Ayurvedic treatments (e.g., sweet medicines) are safe for this patient's medical history (e.g., Diabetes).</p>
-                <p style="margin: 0 0 4px 0; font-weight: 600;">Online Consultation Guidelines:</p>
+                <p style="margin: 0 0 8px 0;"><strong>Clinical Decision Support Notice:</strong> This AI prediction is a cross-checking aid for reviewing the patient's reported symptoms, possible fever-related conditions, and treatment options. It is not a diagnosis and does not replace your clinical assessment.</p>
+                <p style="margin: 0 0 4px 0; font-weight: 600;">Before prescribing, please:</p>
                 <ul style="margin: 0; padding-left: 16px; line-height: 1.5;">
-                    <li>As this is an online digital platform, ensure that your prescription acts as a viable alternative for patients who cannot immediately attend an in-person physical consultation.</li>
-                    <li>If the patient's conditions require direct physical examination, please advise them to visit a nearby clinic or hospital before proceeding with complex treatments.</li>
+                    <li>Confirm the result against the patient's history, allergies, current medicines, examination findings, and clinical judgement.</li>
+                    <li>Review the safety warnings and adjust or reject AI-suggested Ayurvedic or modern medicines when clinically necessary.</li>
+                    <li>Arrange an in-person examination or urgent referral when the patient's symptoms require direct medical care.</li>
                 </ul>
             </div>
         </div>
@@ -355,7 +340,7 @@
 </div>
 
 <!-- HISTORY TAB -->
-<div id="tab_history" style="display:none">
+<div id="tab_history"{% if request.args.get('tab') != 'history' %} style="display:none"{% endif %}>
     {% if prescriptions %}
     {% for pr in prescriptions %}
     <div class="card" style="margin-bottom:16px">
@@ -364,7 +349,12 @@
                 <h3 style="font-family:'Cormorant Garamond',serif;font-size:24px;color:#1A1208">{{ pr.predicted_disease }}</h3>
                 <p style="color:#7A6558;font-size:13px">Prescribed by Dr. {{ pr.doctor_name }} · {{ pr.created_at[:10] }}</p>
             </div>
-            <span class="badge badge-green">Completed</span>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <span class="badge badge-green">Completed</span>
+                <form action="{{ url_for('doctor_delete_prescription', pr_id=pr.id) }}" method="POST" onsubmit="return confirm('Delete this treatment record?');" style="margin:0">
+                    <button type="submit" class="btn btn-outline" style="color:#C62828;border-color:#FFCDD2;background:#FFF5F5;padding:6px 14px;font-size:13px">🗑️ Delete</button>
+                </form>
+            </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:13px">
             <div style="background:#FBF7F0;border-radius:10px;padding:14px">
@@ -662,24 +652,9 @@ function showTab(tab, btn) {
     btn.classList.add('active');
 }
 
-// ── AI Language Translator Panel ──────────────────────────────────────────────
+// ── Doctor Voice Translator ───────────────────────────────────────────────────
 let transRecognition = null;
 let transIsRecording = false;
-
-function toggleTranslatorPanel() {
-    const panel = document.getElementById('translator_panel');
-    const btn = document.getElementById('translator_toggle_btn');
-    if (panel.style.display === 'none') {
-        panel.style.display = 'block';
-        btn.style.background = '#CE93D8';
-        btn.style.color = '#fff';
-    } else {
-        panel.style.display = 'none';
-        btn.style.background = '#F3E5F5';
-        btn.style.color = '#7B1FA2';
-        if (transIsRecording && transRecognition) transRecognition.stop();
-    }
-}
 
 function toggleDoctorTranslation() {
     if (transIsRecording) {
@@ -693,11 +668,15 @@ function toggleDoctorTranslation() {
         return;
     }
 
-    const langChoice = document.querySelector('input[name="trans_lang"]:checked').value;
+    const langChoice = document.getElementById('trans_lang').value;
     transRecognition = new SpeechRecognition();
     transRecognition.continuous = false;
     transRecognition.interimResults = true;
-    transRecognition.lang = langChoice === 'kn' ? 'kn-IN' : 'hi-IN';
+    const speechLangMap = {
+        kn: 'kn-IN', hi: 'hi-IN', ta: 'ta-IN', te: 'te-IN', bn: 'bn-IN',
+        mr: 'mr-IN', ml: 'ml-IN', ur: 'ur-PK', gu: 'gu-IN', pa: 'pa-IN', en: 'en-US'
+    };
+    transRecognition.lang = speechLangMap[langChoice] || 'en-US';
 
     transRecognition.start();
     transIsRecording = true;
@@ -768,8 +747,6 @@ function useTranslationAsSymptoms() {
     document.getElementById('ai_symptom_input').value = englishText;
     // Auto-trigger AI extraction
     extractSymptoms();
-    // Optional: collapse the translator panel
-    toggleTranslatorPanel();
 }
 
 </script>
